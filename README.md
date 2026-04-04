@@ -21,7 +21,7 @@ This project simulates a **Super-heterodyne receiver** for a **DSB-SC AM communi
 ```
 Superheterodyne-AM-Receiver/
 ├── audio/                  # Input WAV files
-├── figures/                # Generated figures (optional)
+├── figures/                # Generated figures
 ├── src/                    # MATLAB code
 │   └── superheterodyne_AM.m
 ├── report/                 # Report file
