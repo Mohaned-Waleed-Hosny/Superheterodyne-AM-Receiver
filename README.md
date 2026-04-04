@@ -25,8 +25,7 @@ Superheterodyne-AM-Receiver/
 ├── src/                    # MATLAB code
 │   └── superheterodyne_AM.m
 ├── report/                 # Report file
-├── README.md
-└── .gitignore
+└── README.md
 ```
 
 ## Requirements
