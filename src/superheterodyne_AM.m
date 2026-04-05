@@ -88,15 +88,23 @@ pause(maxLength/baseFs + 1);
 
 %% 9. Experiments
 disp('--- Stage 9: Experiments ---');
-% Exp A
-disp('Exp A: No RF Filter');
-ifOutNoRF = filtfilt(ifFilt, fdmSignal .* cos(2*pi*fLO*t));
+% Exp A: No RF Filter
+disp('Exp A: No RF Filter (Playing audio...)');
+mixedNoRF = fdmSignal .* cos(2*pi*fLO*t); 
+ifOutNoRF = filtfilt(ifFilt, mixedNoRF);
 recNoRF = filtfilt(lpFilt, ifOutNoRF .* cos(2*pi*fIF*t));
-figure('Name','Experiment A'); plotSpectrum(ifOutNoRF, newFs, 'No RF Filter IF Output', 'b');
+
+figure('Name','Experiment A: Effect of Removing RF Filter');
+subplot(3,1,1); plotSpectrum(fdmSignal, newFs, 'Input to Mixer (Full FDM - No RF Filter)', 'r'); 
+xlim([-(max(fc)+max(estBW)), max(fc)+max(estBW)]);
+subplot(3,1,2); plotSpectrum(ifOutNoRF, newFs, 'IF Output (Image Frequencies Present)', 'r'); 
 xlim([-(fIF + 2*bw), fIF + 2*bw]);
+subplot(3,1,3); plotSpectrum(recNoRF, newFs, 'Recovered Baseband (Distorted)', 'r'); 
+xlim([-bw*1.2, bw*1.2]);
+
 sound(downsample(recNoRF/max(abs(recNoRF)), interpFactor), baseFs); pause(maxLength/baseFs + 1);
 
-% Exp B
+% Exp B: LO Offset
 off1 = 100; off2 = 1000;
 recOff1 = filtfilt(lpFilt, filtfilt(ifFilt, rfOut .* cos(2*pi*(fLO+off1)*t)) .* cos(2*pi*fIF*t));
 recOff2 = filtfilt(lpFilt, filtfilt(ifFilt, rfOut .* cos(2*pi*(fLO+off2)*t)) .* cos(2*pi*fIF*t));
@@ -106,8 +114,8 @@ pause(maxLength/baseFs + 1);
 disp('Exp B: LO Offset 1.0 kHz'); sound(downsample(recOff2/max(abs(recOff2)), interpFactor), baseFs);
 
 figure('Name','Experiment B: LO Offset');
-subplot(2,1,1); plotSpectrum(recOff1, newFs, 'Offset 0.1 kHz', 'b'); xlim([-bw*1.2, bw*1.2]);
-subplot(2,1,2); plotSpectrum(recOff2, newFs, 'Offset 1.0 kHz', 'b'); xlim([-bw*1.2, bw*1.2]);
+subplot(2,1,1); plotSpectrum(recOff1, newFs, 'Offset 0.1 kHz', 'r'); xlim([-bw*1.2, bw*1.2]);
+subplot(2,1,2); plotSpectrum(recOff2, newFs, 'Offset 1.0 kHz', 'r'); xlim([-bw*1.2, bw*1.2]);
 
 %% Helper Functions
 function plotSpectrum(sig, fs, txt, clr)
