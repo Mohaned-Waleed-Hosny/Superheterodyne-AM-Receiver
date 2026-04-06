@@ -3,7 +3,7 @@
 % =========================================================================
 clear; clc; close all;
 
-%% 1. Signal Preprocessing
+%% 1. Signal Preprocessing - Load and Normalize Audio
 disp('--- Stage 1: Preprocessing ---');
 fileNames = {'audio1.wav', 'audio2.wav', 'audio3.wav', 'audio4.wav', 'audio5.wav'};
 numSig = length(fileNames); audioSignals = cell(1, numSig);
@@ -16,10 +16,10 @@ for i = 1:numSig
     maxLength = max(maxLength, length(mono));
 end
 
-paddedSignals = zeros(maxLength, numSig);
+paddedSignals = zeros(maxLength, numSig); % Zero-pad to match longest signal
 for i = 1:numSig, paddedSignals(1:length(audioSignals{i}), i) = audioSignals{i}; end
 
-%% 2. Interpolation & BW Estimation
+%% 2. Interpolation & BW Estimation - Upsample for High-Freq Carriers
 disp('--- Stage 2: Resampling & BW ---');
 baseFs = fs_orig(1); interpFactor = ceil(600000 / baseFs);
 newFs = baseFs * interpFactor; interpLen = maxLength * interpFactor;
@@ -31,10 +31,10 @@ for i = 1:numSig
     processedSignals(:,i) = interp(paddedSignals(:,i), interpFactor);
 end
 
-%% 3. AM Modulation & Comparative Spectra
+%% 3. AM Modulation & Comparative Spectra - DSB-SC Modulation
 disp('--- Stage 3: AM Modulation ---');
 t = (0:interpLen-1)' / newFs; modulatedSignals = zeros(interpLen, numSig);
-fc = 100000 + (0:numSig-1)*30000; 
+fc = 100000 + (0:numSig-1)*30000; % Carrier frequencies: 100k, 130k, ...
 figure('Name','Stage 3: Comparative Spectra'); colors = lines(numSig);
 
 for i = 1:numSig
@@ -45,13 +45,13 @@ end
 subplot(2,1,1); title('All Baseband Spectra'); grid on; legend show; xlim([-max(estBW)*1.2, max(estBW)*1.2]);
 subplot(2,1,2); title('All Modulated Spectra'); grid on; legend show; xlim([-(max(fc)+max(estBW)), max(fc)+max(estBW)]);
 
-%% 4. Frequency Division Multiplexing (FDM)
+%% 4. Frequency Division Multiplexing (FDM) - Combine All Channels
 disp('--- Stage 4: FDM ---');
 fdmSignal = sum(modulatedSignals, 2);
 figure('Name','Stage 4: FDM'); plotSpectrum(fdmSignal, newFs, 'FDM Spectrum', 'b');
 xlim([-(max(fc)+max(estBW)), max(fc)+max(estBW)]);
 
-%% 5. Receiver - RF Stage
+%% 5. Receiver - RF Stage - Filter Desired Channel (Channel 3)
 disp('--- Stage 5: RF Stage ---');
 targetIdx = 3; targetFc = fc(targetIdx); bw = estBW(targetIdx);
 rfFilt = designfilt('bandpassiir','FilterOrder',4,'HalfPowerFrequency1',targetFc-bw,...
@@ -60,14 +60,14 @@ rfOut = filtfilt(rfFilt, fdmSignal);
 figure('Name','Stage 5: RF Output'); plotSpectrum(rfOut, newFs, 'RF Output', 'b');
 xlim([-(targetFc + 2*bw), targetFc + 2*bw]);
 
-%% 6. Mixer & Local Oscillator
+%% 6. Mixer & Local Oscillator - Downconvert to Intermediate Frequency
 disp('--- Stage 6: Mixer ---');
 fIF = 15000; fLO = targetFc + fIF;
 mixedSignal = rfOut .* cos(2*pi*fLO*t);
 figure('Name','Stage 6: Mixer'); plotSpectrum(mixedSignal, newFs, 'Mixer Output', 'b');
 xlim([-(fLO + targetFc + bw), (fLO + targetFc + bw)]);
 
-%% 7. IF Stage
+%% 7. IF Stage - Isolate Signal at fIF
 disp('--- Stage 7: IF Stage ---');
 ifFilt = designfilt('bandpassiir','FilterOrder',4,'HalfPowerFrequency1',fIF-bw,...
     'HalfPowerFrequency2',fIF+bw,'SampleRate',newFs);
@@ -75,7 +75,7 @@ ifOut = filtfilt(ifFilt, mixedSignal);
 figure('Name','Stage 7: IF Output'); plotSpectrum(ifOut, newFs, 'IF Output', 'b');
 xlim([-(fIF + 2*bw), fIF + 2*bw]);
 
-%% 8. Baseband Detection & Playback
+%% 8. Baseband Detection & Playback - Coherent Demodulation
 disp('--- Stage 8: Demodulation ---');
 detMixed = ifOut .* cos(2*pi*fIF*t);
 lpFilt = designfilt('lowpassiir','FilterOrder',6,'HalfPowerFrequency',bw,'SampleRate',newFs);
@@ -86,9 +86,9 @@ xlim([-bw*1.2, bw*1.2]);
 disp('Playing recovered audio...'); sound(downsample(recovered, interpFactor), baseFs);
 pause(maxLength/baseFs + 1);
 
-%% 9. Experiments
+%% 9. Experiments - Analyzing Image Frequency and Tuning Error
 disp('--- Stage 9: Experiments ---');
-% Exp A: No RF Filter
+% Exp A: No RF Filter (Demonstrates Image Interference)
 disp('Exp A: No RF Filter (Playing audio...)');
 mixedNoRF = fdmSignal .* cos(2*pi*fLO*t); 
 ifOutNoRF = filtfilt(ifFilt, mixedNoRF);
@@ -104,7 +104,7 @@ xlim([-bw*1.2, bw*1.2]);
 
 sound(downsample(recNoRF/max(abs(recNoRF)), interpFactor), baseFs); pause(maxLength/baseFs + 1);
 
-% Exp B: LO Offset
+% Exp B: LO Offset (Frequency Inaccuracy Effect)
 off1 = 100; off2 = 1000;
 recOff1 = filtfilt(lpFilt, filtfilt(ifFilt, rfOut .* cos(2*pi*(fLO+off1)*t)) .* cos(2*pi*fIF*t));
 recOff2 = filtfilt(lpFilt, filtfilt(ifFilt, rfOut .* cos(2*pi*(fLO+off2)*t)) .* cos(2*pi*fIF*t));
@@ -118,13 +118,13 @@ subplot(2,1,1); plotSpectrum(recOff1, newFs, 'Offset 0.1 kHz', 'r'); xlim([-bw*1
 subplot(2,1,2); plotSpectrum(recOff2, newFs, 'Offset 1.0 kHz', 'r'); xlim([-bw*1.2, bw*1.2]);
 
 %% Helper Functions
-function plotSpectrum(sig, fs, txt, clr)
+function plotSpectrum(sig, fs, txt, clr) % Computes and plots Magnitude Spectrum
     N = length(sig); f = (-N/2:N/2-1)*(fs/N);
     plot(f, abs(fftshift(fft(sig)))/N, 'Color', clr);
     grid on; title(txt); xlabel('Hz'); ylabel('Mag');
 end
 
-function bw = estimateBandwidth(sig, fs)
+function bw = estimateBandwidth(sig, fs) % BW estimate based on 1% magnitude threshold
     N = length(sig); f = (-N/2:N/2-1)*(fs/N);
     mag = abs(fftshift(fft(sig))); mag = mag / max(mag);
     idx = find(mag > 0.01);
